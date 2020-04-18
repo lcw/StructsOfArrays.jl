@@ -33,6 +33,27 @@ function Broadcast.copy(bc::Broadcasted{<:Broadcast.ArrayStyle{StructOfArrays{T,
     return @allowscalar dest[CartesianIndex()]  # 0D broadcast needs to unwrap results
 end
 
+@kernel function broadcast_kernel!(dest, bc′)
+    i = @index(Global, Linear)
+    let I = CartesianIndex(CartesianIndices(dest)[i])
+        @inbounds dest[I] = bc′[I]
+    end
+end
+
+@inline function Base.copyto!(dest::DestStructOfGPUArrays, bc::Broadcasted{Nothing})
+    axes(dest) == axes(bc) || Broadcast.throwdm(axes(dest), axes(bc))
+    bc′ = Broadcast.preprocess(dest, bc)
+
+    threads = 256
+    device = _device(eltype(dest.arrays))
+
+    event = Event(device)
+    event = broadcast_kernel!(device, threads)(dest, bc′, ndrange=length(dest), dependencies=event)
+    wait(device, event)
+
+    return dest
+end
+
 # Base defines this method as a performance optimization, but we don't know how to do
 # `fill!` in general for all `DestStructOfGPUArrays` so we just go straight to the fallback
 @inline Base.copyto!(dest::DestStructOfGPUArrays, bc::Broadcasted{<:AbstractArrayStyle{0}}) =

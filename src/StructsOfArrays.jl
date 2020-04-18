@@ -7,6 +7,7 @@ using Base.Broadcast
 import Base.Broadcast: BroadcastStyle, Broadcasted, AbstractArrayStyle
 
 using Adapt
+using KernelAbstractions
 using LinearAlgebra
 
 """
@@ -36,6 +37,7 @@ end
 # Storage types of StructOfArrays need to implement this
 _type_with_eltype(::Type{<:Array}, T, N) = Array{T, N}
 _type(::Type{<:Array}) = Array
+_device(::Type{<:AbstractArray}) = CPU()
 
 function replace_storage(f, x::StructOfArrays{T, N}) where {T, N}
     arrays = map(f, x.arrays)
