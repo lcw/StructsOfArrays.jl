@@ -3,6 +3,7 @@ using Test
 using Random
 using StaticArrays
 using CUDAapi
+using LinearAlgebra
 
 @testset "StructsOfArrays.jl" begin
     @testset "constructor" begin
@@ -47,6 +48,22 @@ using CUDAapi
         @test typeof(soa .+ soa) === typeof(soa)
         @test typeof(regular .+ soa) === typeof(soa)
         @test sin.(soa)[2] == sin(regular[2])
+
+        type = SArray{Tuple{3},Float64,1,3}
+        N = 1000
+        data = rand(MersenneTwister(0), type, N)
+
+        d = convert(StructOfArrays, data)
+        e = d .+ d
+        @test e[3] == d[3] .+ d[3]
+        n = norm.(d)
+        @test n[4] == norm(d[4])
+
+        f = convert(StructOfArrays, rand(ComplexF64, 1, 3))
+        g = convert(StructOfArrays, rand(ComplexF64, 3, 1))
+
+        o = f .+ g
+        @test o[2, 1] == f[1] + g[2]
     end
 
     @testset "recursive structs" begin

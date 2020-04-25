@@ -1,7 +1,14 @@
 using GPUArrays
 
-const AbstractStructOfGPUArrays = StructOfArrays{T,N,<:AbstractGPUArray} where {T, N}
-const AbstractStructOfGPUArraysStyle{N} = Broadcast.ArrayStyle{StructOfArrays{T,N,<:AbstractGPUArray}} where T
+const AbstractStructOfGPUArrays = StructOfArrays{T,N,<:AbstractArray} where {T, N}
+const AbstractStructOfGPUArraysStyle{N} = Broadcast.ArrayStyle{StructOfArrays{T,N,<:AbstractArray}} where T
+
+BroadcastStyle(::Type{<:StructOfArrays{T,N,A}}) where {T,N,A<:AbstractArray} = Broadcast.ArrayStyle{StructOfArrays{T,N,A}}()
+
+function Base.similar(bc::Broadcasted{Broadcast.ArrayStyle{StructOfArrays{T1,N,AT}}}, ::Type{T}) where {T1,N,AT,T}
+    StructOfArrays(T, AT, Base.to_shape(axes(bc)))
+end
+
 
 # Wrapper types otherwise forget that they are StructOfArrays
 for (W, ctor) in Adapt.wrappers
@@ -26,7 +33,7 @@ end
 BroadcastStyle(::Type{Base.RefValue{AT}}) where {AT<:AbstractStructOfGPUArrays} = typeof(BroadcastStyle(AT))(Val(0))
 backend(::Type{Base.RefValue{AT}}) where {AT<:AbstractStructOfGPUArrays} = backend(AT)
 # but make sure we don't dispatch to the optimized copy method that directly indexes
-function Broadcast.copy(bc::Broadcasted{<:Broadcast.ArrayStyle{StructOfArrays{T,0,<:AbstractGPUArray}}}) where {T}
+function Broadcast.copy(bc::Broadcasted{<:Broadcast.ArrayStyle{StructOfArrays{T,0,<:AbstractArray}}}) where {T}
     ElType = Broadcast.combine_eltypes(bc.f, bc.args)
     isbitstype(ElType) || error("Cannot broadcast function returning non-isbits $ElType.")
     dest = copyto!(similar(bc, ElType), bc)
@@ -44,8 +51,11 @@ end
     axes(dest) == axes(bc) || Broadcast.throwdm(axes(dest), axes(bc))
     bc′ = Broadcast.preprocess(dest, bc)
 
+    @warn "Crap"
+    @error "Crap"
+
     threads = 256
-    device = _device(eltype(dest.arrays))
+    @show device = _device(eltype(dest.arrays))
 
     event = Event(device)
     event = broadcast_kernel!(device, threads)(dest, bc′, ndrange=length(dest), dependencies=event)
